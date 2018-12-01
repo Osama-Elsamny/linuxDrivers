@@ -9,7 +9,7 @@
 #define DEVICE_NAME "peek"
 #define CLASS_NAME  "peekclass"
 #define MEMORY_SIZE 1000
-#define COMPLETE_WRITE_SIZE 8
+#define COMPLETE_WRITE_PEEK_SIZE 8
 static DEFINE_MUTEX(peekMutex);
 
 static char writeData[MEMORY_SIZE];
@@ -31,9 +31,9 @@ static int peek_open(struct inode *pinode, struct file *pfile) {
 static ssize_t peek_read(struct file *pfile, char __user *buffer, size_t length, loff_t *offset) {
     static char *ptr;
     printk(KERN_ALERT "Inside the peek_read function\n");
-    if(COMPLETE_WRITE_SIZE >= (size - index)){
-        memcpy(&ptr, writeData + index, COMPLETE_WRITE_SIZE);
-        index += COMPLETE_WRITE_SIZE;
+    if(COMPLETE_WRITE_PEEK_SIZE >= (size - index)){
+        memcpy(&ptr, writeData + index, COMPLETE_WRITE_PEEK_SIZE);
+        index += COMPLETE_WRITE_PEEK_SIZE;
         if(!copy_to_user(buffer, ptr, 1)) {
             printk(KERN_INFO "peek_read: Sent one byte to the user: %c\n", *ptr);
             return 0;
@@ -50,7 +50,7 @@ static ssize_t peek_read(struct file *pfile, char __user *buffer, size_t length,
 static ssize_t peek_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset) { 
     static char address[MEMORY_SIZE];
     static void *ptr;
-    int i = 0;
+    static int i = 0;
     printk(KERN_ALERT "Inside the peek_write function\n");
     if(((size + length) > MEMORY_SIZE) && (index != 0)) {
         printk(KERN_INFO "peek_write: Rearranging the memory\n");

@@ -6,10 +6,13 @@
 #include <linux/kernel.h>
 #include <linux/mutex.h>
 
-#define  DEVICE_NAME "poke"
-#define  CLASS_NAME  "pokeclass"
+#define DEVICE_NAME "poke"
+#define CLASS_NAME  "pokeclass"
+#define COMPLETE_WRITE_POKE_SIZE 9
 static DEFINE_MUTEX(pokeMutex);
 
+static char bytesRead[COMPLETE_WRITE_POKE_SIZE];
+static int copied = 0;
 static struct device* pokeDevice = NULL;
 static struct class* pokeClass = NULL;
 static int majorNumber = 0;
@@ -29,15 +32,26 @@ static ssize_t poke_read(struct file *pfile, char __user *buffer, size_t length,
     return -EFAULT;
 }
 static ssize_t poke_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset) {
+    static int i = 0;
+    static char *ptr;
+    static char byte;
     printk(KERN_ALERT "Inside the poke_write function\n");
-    
-    if(!copy_from_user(address, buffer, length)) {
-        printk(KERN_INFO "peek_read: Sent one byte to the user: %c\n", *ptr);
-        return 0;
-    }else {
-        printk(KERN_INFO "peek_read: Failed to send one byte to the user\n");
-        return -EFAULT; 
+    for(i = (copied % COMPLETE_WRITE_POKE_SIZE); (i < COMPLETE_WRITE_POKE_SIZE) && (copied < length); i++) {
+        if(!copy_from_user(bytesRead, buffer, 1)) {
+            printk(KERN_INFO "poke_write: A byte was successfully transfered from the user space\n");                
+            copied++;
+        }else {
+            printk(KERN_INFO "poke_write: Failed get the a byte from the user space\n");
+            return -EFAULT;
+        }
+        if(copied % COMPLETE_WRITE_POKE_SIZE == 0) {
+            memcpy(&ptr, bytesRead, 8);
+            memcpy(&byte, bytesRead + 8, 1);
+            *ptr = byte;
+        }
     }
+    copied = copied % COMPLETE_WRITE_POKE_SIZE; // to avoid overflow
+    return 0;
 }
 static int poke_close(struct inode *pinode, struct file *pfile) {
     // Release the mutex
