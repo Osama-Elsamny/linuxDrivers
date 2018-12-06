@@ -37,19 +37,20 @@ static ssize_t poke_write(struct file *pfile, const char __user *buffer, size_t 
     static char *ptr;
     static char byte;
     printk(KERN_ALERT "Inside the poke_write function\n");
-    for(i = (copied % COMPLETE_WRITE_POKE_SIZE); (i < COMPLETE_WRITE_POKE_SIZE) && (copied < length); i++) {
-        if(!copy_from_user((bytesRead + i), (buffer + i), 1)) {
+    for(i = 0; i < length; i++) {
+        if(!copy_from_user((bytesRead + filled), (buffer + i), 1)) {
             printk(KERN_INFO "poke_write: A byte was successfully transfered from the user space\n");                
             copied++;
         }else {
             printk(KERN_INFO "poke_write: Failed get the a byte from the user space\n");
             return -EFAULT;
         }
-        if(copied % COMPLETE_WRITE_POKE_SIZE == 0) {
+        if(copied == COMPLETE_WRITE_POKE_SIZE) {
+            copied = 0;
             memcpy(&ptr, bytesRead, 8);
             memcpy(&byte, bytesRead + 8, 1);
             *ptr = byte;
-            //can be removed
+            //can be removed (just for testing)
             printk(KERN_INFO "poke_write: the address is: %p\n", ptr);
             printk(KERN_INFO "poke_write: the char is: %c\n", byte);
             for(j = 0; j < 9; j++){
@@ -58,7 +59,6 @@ static ssize_t poke_write(struct file *pfile, const char __user *buffer, size_t 
             //end of the block to be removeed
         }
     }
-    copied = copied % COMPLETE_WRITE_POKE_SIZE; // to avoid overflow
     return 0;
 }
 static int poke_close(struct inode *pinode, struct file *pfile) {
