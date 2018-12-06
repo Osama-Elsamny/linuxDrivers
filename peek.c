@@ -29,7 +29,7 @@ static int peek_open(struct inode *pinode, struct file *pfile) {
 static ssize_t peek_read(struct file *pfile, char __user *buffer, size_t length, loff_t *offset) {
     static char *ptr;
     printk(KERN_ALERT "Inside the peek_read function\n");
-    if(copied == 0) {
+    if(copied == (COMPLETE_WRITE_PEEK_SIZE - 1)) {
         memcpy(&ptr, writeData, COMPLETE_WRITE_PEEK_SIZE);
         if(!copy_to_user(buffer, ptr, 1)) {
             printk(KERN_INFO "peek_read: Sent one byte to the user: %c\n", *ptr);
@@ -48,15 +48,13 @@ static ssize_t peek_write(struct file *pfile, const char __user *buffer, size_t 
     static int i = 0;
     printk(KERN_ALERT "Inside the peek_write function\n");
     for(i = 0; i < length; i++) {
+        copied = copied % COMPLETE_WRITE_PEEK_SIZE; //from 0 to 7
         if(!copy_from_user((writeData + copied), (buffer + i), 1)) {
             printk(KERN_INFO "peek_write: A byte was successfully transfered from the user space\n");                
             copied++;
         }else {
             printk(KERN_INFO "peek_write: Failed get the a byte from the user space\n");
             return -EFAULT;
-        }
-        if(copied == (COMPLETE_WRITE_PEEK_SIZE - 1)) {
-            copied = 0;
         }
     }
     return 0;
