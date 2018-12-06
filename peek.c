@@ -8,13 +8,11 @@
 
 #define DEVICE_NAME "peek"
 #define CLASS_NAME  "peekclass"
-#define MEMORY_SIZE 1000
 #define COMPLETE_WRITE_PEEK_SIZE 8
 static DEFINE_MUTEX(peekMutex);
 
-static char writeData[MEMORY_SIZE];
-static int index = 0;
-static int size = 0;
+static char writeData[COMPLETE_WRITE_PEEK_SIZE];
+static int copied = 0;
 static struct device* peekDevice = NULL;
 static struct class* peekClass = NULL;
 static int majorNumber = 0;
@@ -31,9 +29,8 @@ static int peek_open(struct inode *pinode, struct file *pfile) {
 static ssize_t peek_read(struct file *pfile, char __user *buffer, size_t length, loff_t *offset) {
     static char *ptr;
     printk(KERN_ALERT "Inside the peek_read function\n");
-    if(COMPLETE_WRITE_PEEK_SIZE >= (size - index)){
-        memcpy(&ptr, writeData + index, COMPLETE_WRITE_PEEK_SIZE);
-        index += COMPLETE_WRITE_PEEK_SIZE;
+    if(copied == 0) {
+        memcpy(&ptr, writeData, COMPLETE_WRITE_PEEK_SIZE);
         if(!copy_to_user(buffer, ptr, 1)) {
             printk(KERN_INFO "peek_read: Sent one byte to the user: %c\n", *ptr);
             return 0;
@@ -41,51 +38,28 @@ static ssize_t peek_read(struct file *pfile, char __user *buffer, size_t length,
             printk(KERN_INFO "peek_read: Failed to send one byte to the user\n");
             return -EFAULT; 
         }
-    }else{
+    }else {
         printk(KERN_INFO "peek_read: Failed \"Not enough bytes in memory to be read, need at least 8 bytes to perform a read\"\n");
         return -EFAULT; 
     }
     return 0;
 }
 static ssize_t peek_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset) { 
-    static char address[MEMORY_SIZE];
-    static void *ptr;
     static int i = 0;
     printk(KERN_ALERT "Inside the peek_write function\n");
-    if(((size + length) > MEMORY_SIZE) && (index != 0)) {
-        printk(KERN_INFO "peek_write: Rearranging the memory\n");
-        size = size - index;
-        memmove(writeData, writeData + index, size);
-        //can be removed
-        for(i = 0; i < size; i++){
-		    printk("writeData: %2.2x", (unsigned int)(unsigned char)writeData[i]);            
+    for(i = 0; i < length; i++) {
+        if(!copy_from_user((writeData + copied), (buffer + i), 1)) {
+            printk(KERN_INFO "peek_write: A byte was successfully transfered from the user space\n");                
+            copied++;
+        }else {
+            printk(KERN_INFO "peek_write: Failed get the a byte from the user space\n");
+            return -EFAULT;
         }
-        //end of the block to be removeed
-    }
-    if(((size + length) > MEMORY_SIZE) && (index == 0)) {
-        printk(KERN_INFO "peek_write: Failed the maximum number of bytes to be save is %d\n", MEMORY_SIZE);
-        return -EFAULT;
-    }
-    if(!copy_from_user(address, buffer, length)) {
-        //can be removed
-        memcpy(&ptr, address, length);
-        //end of the block to be removeed
-        printk(KERN_INFO "peek_write: Pointer is added the data to memeory successfully with address: %p\n", ptr); 
-        memmove(writeData + size, address, length);
-        size += length;
-        //can be removed
-        for(i = 0; i < length; i++){
-		    printk("address: %2.2x", (unsigned int)(unsigned char)address[i]);            
+        if(copied == (COMPLETE_WRITE_PEEK_SIZE - 1)) {
+            copied = 0;
         }
-        for(i = 0; i < size; i++){
-		    printk("writeData: %2.2x", (unsigned int)(unsigned char)writeData[i]);            
-        }
-        //end of the block to be removeed
-        return length;
-    }else {
-        printk(KERN_INFO "peek_write: Failed get the address from the user\n");
-        return -EFAULT; 
     }
+    return 0;
 }
 static int peek_close(struct inode *pinode, struct file *pfile) {
     // Release the mutex
